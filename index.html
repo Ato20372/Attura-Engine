@@ -1,0 +1,783 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Attura Engine</title>
+<link rel="icon" type="image/x-icon" href="logo.png">
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+  :root {
+    /* layout: full-bleed toolbar band (brand + Code/Game tabs + run controls) over a
+       single-screen workspace; the active view fills the rest, editor or canvas stage
+       with a docked, collapsible console beneath the stage */
+    --bg: #f4f5f7;
+    --surface: #ffffff;
+    --surface-2: #eceef2;
+    --border: #d7dae2;
+    --fg: #1a1d27;
+    --fg-dim: #5b6172;
+    --accent: #b5790a;
+    --accent-fg: #ffffff;
+    --danger: #c23b3b;
+    --danger-fg: #ffffff;
+    --good: #2f8f5b;
+    --stage-bg: #0c0e14;
+    --stage-fg: #767c8c;
+    --font-display: 'Sora', system-ui, -apple-system, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+    --syn-keyword: #8250df;
+    --syn-string: #116329;
+    --syn-number: #953800;
+    --syn-comment: #6b7280;
+    --syn-fn: #0550ae;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12141c; --surface: #181b26; --surface-2: #1f2330; --border: #2b2f3d;
+      --fg: #e7e9f2; --fg-dim: #949ab0; --accent: #f2b35c; --accent-fg: #1a1205;
+      --danger: #ef6461; --danger-fg: #2a0b0a; --good: #5fd98a;
+      --syn-keyword: #c297ff; --syn-string: #7ee787; --syn-number: #ffa657;
+      --syn-comment: #8b92a8; --syn-fn: #79c0ff;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #12141c; --surface: #181b26; --surface-2: #1f2330; --border: #2b2f3d;
+    --fg: #e7e9f2; --fg-dim: #949ab0; --accent: #f2b35c; --accent-fg: #1a1205;
+    --danger: #ef6461; --danger-fg: #2a0b0a; --good: #5fd98a;
+    --syn-keyword: #c297ff; --syn-string: #7ee787; --syn-number: #ffa657;
+    --syn-comment: #8b92a8; --syn-fn: #79c0ff;
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: var(--font-display);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ---------- toolbar ---------- */
+  .toolbar {
+    flex: 0 0 auto;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .toolbar-inner {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px 16px;
+    padding: 10px max(16px, env(safe-area-inset-right, 0px)) 10px max(16px, env(safe-area-inset-left, 0px));
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin-right: auto;
+  }
+  .brand-mark {
+    color: var(--accent);
+    font-size: 15px;
+    line-height: 1;
+  }
+  .brand-name {
+    font-weight: 700;
+    font-size: 15px;
+    letter-spacing: -0.01em;
+  }
+  .tabs {
+    display: inline-flex;
+    background: var(--surface-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .tab-btn {
+    font: 500 13px var(--font-display);
+    padding: 6px 15px;
+    border: none;
+    background: transparent;
+    color: var(--fg-dim);
+    border-radius: 6px;
+    cursor: pointer;
+  }
+  .tab-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .tab-btn.active {
+    background: var(--surface);
+    color: var(--fg);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  }
+  .run-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 12.5px var(--font-display);
+    color: var(--fg-dim);
+    padding: 0 2px;
+  }
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--fg-dim);
+    flex: 0 0 auto;
+  }
+  .status.running { color: var(--good); }
+  .status.running .status-dot {
+    background: var(--good);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good) 22%, transparent);
+  }
+  .status.error { color: var(--danger); }
+  .status.error .status-dot { background: var(--danger); }
+
+  .btn {
+    font: 600 13px var(--font-display);
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .btn-primary { background: var(--accent); color: var(--accent-fg); }
+  .btn-primary:hover { filter: brightness(1.05); }
+  .btn-stop { background: transparent; color: var(--danger); border-color: var(--danger); }
+  .btn-stop:hover:not(:disabled) { background: color-mix(in srgb, var(--danger) 10%, transparent); }
+  .btn-stop:disabled { opacity: 0.35; cursor: not-allowed; }
+  .btn-ghost { background: transparent; color: var(--fg-dim); border-color: var(--border); }
+  .btn-ghost:hover { color: var(--fg); border-color: var(--fg-dim); }
+  .btn-xs { font-size: 11.5px; padding: 4px 10px; }
+
+  /* ---------- workspace ---------- */
+  .workspace { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .view {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-height: 0;
+    padding: 14px max(16px, env(safe-area-inset-right, 0px)) 14px max(16px, env(safe-area-inset-left, 0px));
+  }
+
+  /* ---------- code editor ---------- */
+  .editor {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    font-family: var(--font-mono);
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+  .editor-gutter {
+    flex: 0 0 auto;
+    width: 2.8em;
+    padding: 14px 0;
+    overflow: hidden;
+    background: var(--surface-2);
+    border-right: 1px solid var(--border);
+  }
+  .editor-gutter-inner {
+    text-align: right;
+    padding-right: 10px;
+    color: var(--fg-dim);
+    white-space: pre;
+    will-change: transform;
+  }
+  .editor-scroll {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    overflow: auto;
+    display: grid;
+  }
+  .editor-highlight,
+  .editor-input {
+    grid-area: 1 / 1;
+    width: 100%;
+    min-height: 100%;
+    margin: 0;
+    padding: 14px 16px;
+    border: none;
+    font: inherit;
+    white-space: pre;
+    tab-size: 2;
+    -moz-tab-size: 2;
+  }
+  .editor-highlight { color: var(--fg); pointer-events: none; }
+  .editor-highlight code { font: inherit; white-space: inherit; }
+  .editor-input {
+    color: transparent;
+    background: transparent;
+    caret-color: var(--fg);
+    resize: none;
+    outline: none;
+    overflow: hidden;
+  }
+  .tok-keyword { color: var(--syn-keyword); }
+  .tok-string { color: var(--syn-string); }
+  .tok-number { color: var(--syn-number); }
+  .tok-comment { color: var(--syn-comment); font-style: italic; }
+  .tok-fn { color: var(--syn-fn); }
+
+  .hint-bar {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--fg-dim);
+  }
+
+  /* ---------- game stage ---------- */
+  .stage {
+    flex: 1 1 55%;
+    min-height: 160px;
+    position: relative;
+    background: var(--stage-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+  .stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; }
+  .stage-empty {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--stage-fg);
+    font: 500 13.5px var(--font-display);
+    text-align: center;
+    padding: 0 20px;
+  }
+
+  .console {
+    flex: 0 0 168px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+  }
+
+  /* side by side once there's room: stage on the left, a narrow console on the right */
+  @media (min-width: 700px) {
+    #viewGame { flex-direction: row; }
+    #viewGame .stage { flex: 1 1 auto; min-height: 0; }
+    #viewGame .console { flex: 0 0 240px; height: auto; }
+  }
+  .console-head {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
+    font: 600 11px var(--font-display);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--fg-dim);
+  }
+  .console-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    font: 12.5px var(--font-mono);
+  }
+  .log-row { display: flex; gap: 9px; }
+  .log-time { flex: 0 0 auto; color: var(--fg-dim); }
+  .log-msg { min-width: 0; white-space: pre-wrap; word-break: break-word; }
+  .log-row.log-error .log-msg { color: var(--danger); }
+  .log-row.log-warn .log-msg { color: var(--accent); }
+  .log-row.log-info .log-msg { color: var(--fg-dim); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status.running .status-dot { box-shadow: none; }
+  }
+
+  @media (max-width: 480px) {
+    .brand-name { font-size: 14px; }
+    .editor { font-size: 12.5px; }
+  }
+</style>
+
+<header class="toolbar">
+  <div class="toolbar-inner">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">&#9656;</span>
+      <span class="brand-name">Attura Engine</span>
+    </div>
+    <div class="tabs" role="tablist" aria-label="View">
+      <button class="tab-btn active" id="tabBtnCode" data-tab="code" role="tab" aria-selected="true">Code</button>
+      <button class="tab-btn" id="tabBtnGame" data-tab="game" role="tab" aria-selected="false">Game</button>
+    </div>
+    <div class="run-controls">
+      <span class="status" id="status"><span class="status-dot" id="statusDot"></span><span id="statusText">Idle</span></span>
+      <button class="btn btn-primary" id="btnStart">Start</button>
+      <button class="btn btn-stop" id="btnStop" disabled>Stop</button>
+    </div>
+  </div>
+</header>
+
+<main class="workspace">
+  <section class="view" id="viewCode">
+    <div class="editor" id="editor">
+      <div class="editor-gutter" id="editorGutter"><div class="editor-gutter-inner" id="editorGutterInner">1</div></div>
+      <div class="editor-scroll" id="editorScroll">
+        <pre class="editor-highlight" id="editorHighlight" aria-hidden="true"><code id="editorHighlightCode"></code></pre>
+        <textarea class="editor-input" id="editorInput" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" wrap="off"></textarea>
+      </div>
+    </div>
+    <div class="hint-bar">
+      <span>&#8984;/Ctrl + Enter runs &middot; Tab indents</span>
+      <button class="btn btn-ghost btn-xs" id="btnReset">Restore example</button>
+    </div>
+  </section>
+
+  <section class="view" id="viewGame" hidden>
+    <div class="stage" id="stage">
+      <div class="stage-empty" id="stageEmpty">Press Start to run your code</div>
+    </div>
+    <div class="console">
+      <div class="console-head">
+        <span>Console</span>
+        <button class="btn btn-ghost btn-xs" id="btnClearConsole">Clear</button>
+      </div>
+      <div class="console-body" id="consoleBody"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  var EXAMPLE_CODE = [
+    '// SNAKE — arrow keys, or the on-screen pad for touch.',
+    '// Eat the red dot, don’t hit the walls or yourself.',
+    '',
+    'const CELL = 20;',
+    'let cols, rows, snake, dir, nextDir, food, score, best = 0, alive = true;',
+    'let moveTimer = 0;',
+    'const MOVE_EVERY = 0.11;',
+    '',
+    'function resetGame() {',
+    '  cols = Math.floor(Engine.width / CELL);',
+    '  rows = Math.floor(Engine.height / CELL);',
+    '  snake = [{ x: Math.floor(cols / 2), y: Math.floor(rows / 2) }];',
+    '  dir = { x: 1, y: 0 };',
+    '  nextDir = dir;',
+    '  score = 0;',
+    '  alive = true;',
+    '  moveTimer = 0;',
+    '  placeFood();',
+    '}',
+    '',
+    'function placeFood() {',
+    '  let pos;',
+    '  do {',
+    '    pos = { x: Math.floor(Math.random() * cols), y: Math.floor(Math.random() * rows) };',
+    '  } while (snake.some(function (s) { return s.x === pos.x && s.y === pos.y; }));',
+    '  food = pos;',
+    '}',
+    '',
+    'function setDir(x, y) {',
+    '  if (dir.x === -x && dir.y === -y) return; // no reversing into yourself',
+    '  nextDir = { x: x, y: y };',
+    '}',
+    '',
+    'function makeButton(label, x, y) {',
+    '  const b = document.createElement("button");',
+    '  b.textContent = label;',
+    '  b.style.cssText = "width:52px;height:52px;border-radius:12px;" +',
+    '    "border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);" +',
+    '    "color:#fff;font-size:20px;touch-action:manipulation;";',
+    '  const press = function (e) { if (e) e.preventDefault(); alive ? setDir(x, y) : resetGame(); };',
+    '  b.addEventListener("touchstart", press, { passive: false });',
+    '  b.addEventListener("click", press);',
+    '  return b;',
+    '}',
+    '',
+    'function onStart() {',
+    '  resetGame();',
+    '',
+    '  window.addEventListener("keydown", function (e) {',
+    '    if (!alive) { resetGame(); return; }',
+    '    if (e.key === "ArrowUp") setDir(0, -1);',
+    '    else if (e.key === "ArrowDown") setDir(0, 1);',
+    '    else if (e.key === "ArrowLeft") setDir(-1, 0);',
+    '    else if (e.key === "ArrowRight") setDir(1, 0);',
+    '  });',
+    '',
+    '  const pad = document.createElement("div");',
+    '  pad.style.cssText = "position:fixed;left:0;right:0;bottom:14px;" +',
+    '    "display:flex;flex-direction:column;align-items:center;gap:6px;z-index:10;";',
+    '  const top = document.createElement("div");',
+    '  top.style.cssText = "display:flex;gap:6px;";',
+    '  top.appendChild(makeButton("↑", 0, -1));',
+    '  const mid = document.createElement("div");',
+    '  mid.style.cssText = "display:flex;gap:6px;";',
+    '  mid.appendChild(makeButton("←", -1, 0));',
+    '  mid.appendChild(makeButton("↓", 0, 1));',
+    '  mid.appendChild(makeButton("→", 1, 0));',
+    '  pad.appendChild(top);',
+    '  pad.appendChild(mid);',
+    '  document.body.appendChild(pad);',
+    '}',
+    '',
+    'function update(dt) {',
+    '  if (!alive) return;',
+    '  moveTimer += dt;',
+    '  if (moveTimer < MOVE_EVERY) return;',
+    '  moveTimer = 0;',
+    '',
+    '  dir = nextDir;',
+    '  const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };',
+    '',
+    '  const hitWall = head.x < 0 || head.y < 0 || head.x >= cols || head.y >= rows;',
+    '  const hitSelf = snake.some(function (s) { return s.x === head.x && s.y === head.y; });',
+    '  if (hitWall || hitSelf) {',
+    '    alive = false;',
+    '    best = Math.max(best, score);',
+    '    return;',
+    '  }',
+    '',
+    '  snake.unshift(head);',
+    '  if (head.x === food.x && head.y === food.y) {',
+    '    score++;',
+    '    placeFood();',
+    '  } else {',
+    '    snake.pop();',
+    '  }',
+    '}',
+    '',
+    'function draw(ctx) {',
+    '  ctx.fillStyle = "#0c0e14";',
+    '  ctx.fillRect(0, 0, Engine.width, Engine.height);',
+    '',
+    '  ctx.fillStyle = "#e5484d";',
+    '  ctx.fillRect(food.x * CELL + 2, food.y * CELL + 2, CELL - 4, CELL - 4);',
+    '',
+    '  snake.forEach(function (s, i) {',
+    '    ctx.fillStyle = i === 0 ? "#f2b35c" : "#c98f45";',
+    '    ctx.fillRect(s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2);',
+    '  });',
+    '',
+    '  ctx.fillStyle = "#e7e9f2";',
+    '  ctx.font = "600 16px sans-serif";',
+    '  ctx.fillText("Score " + score, 12, 24);',
+    '  ctx.fillText("Best " + best, 12, 44);',
+    '',
+    '  if (!alive) {',
+    '    ctx.fillStyle = "rgba(0,0,0,0.55)";',
+    '    ctx.fillRect(0, 0, Engine.width, Engine.height);',
+    '    ctx.fillStyle = "#fff";',
+    '    ctx.textAlign = "center";',
+    '    ctx.font = "700 22px sans-serif";',
+    '    ctx.fillText("Game Over", Engine.width / 2, Engine.height / 2 - 10);',
+    '    ctx.font = "500 14px sans-serif";',
+    '    ctx.fillText("Press a key or tap a button to play again", Engine.width / 2, Engine.height / 2 + 16);',
+    '    ctx.textAlign = "left";',
+    '  }',
+    '}',
+    ''
+  ].join('\n');
+
+  // ---------- syntax highlighting ----------
+  var KEYWORDS = ['const','let','var','function','return','if','else','for','while','new','this',
+    'true','false','null','undefined','break','continue','typeof','class','extends','super','in',
+    'of','do','switch','case','default','try','catch','finally','throw','instanceof','void',
+    'delete','yield','async','await','static','get','set','import','export','from'];
+  var TOKEN_RE = new RegExp(
+    '(\\/\\/[^\\n]*)' +                                    // 1: line comment
+    '|(\\/\\*[\\s\\S]*?\\*\\/)' +                          // 2: block comment
+    '|(`(?:\\\\.|[^`\\\\])*`|"(?:\\\\.|[^"\\\\])*"|\'(?:\\\\.|[^\'\\\\])*\')' + // 3: string
+    '|(\\b\\d+\\.?\\d*\\b)' +                              // 4: number
+    '|(\\b(?:' + KEYWORDS.join('|') + ')\\b)' +            // 5: keyword
+    '|(\\b[A-Za-z_$][\\w$]*\\b(?=\\s*\\())',               // 6: function call
+    'g'
+  );
+
+  function escapeHtml(s) {
+    return s.replace(/[&<>]/g, function (c) {
+      return c === '&' ? '&amp;' : (c === '<' ? '&lt;' : '&gt;');
+    });
+  }
+
+  function highlight(code) {
+    TOKEN_RE.lastIndex = 0;
+    var out = '';
+    var last = 0;
+    var m;
+    while ((m = TOKEN_RE.exec(code))) {
+      out += escapeHtml(code.slice(last, m.index));
+      var cls = (m[1] || m[2]) ? 'tok-comment' : m[3] ? 'tok-string' : m[4] ? 'tok-number' : m[5] ? 'tok-keyword' : 'tok-fn';
+      out += '<span class="' + cls + '">' + escapeHtml(m[0]) + '</span>';
+      last = TOKEN_RE.lastIndex;
+    }
+    out += escapeHtml(code.slice(last));
+    return out;
+  }
+
+  // ---------- editor wiring ----------
+  var input = document.getElementById('editorInput');
+  var hlCode = document.getElementById('editorHighlightCode');
+  var scrollEl = document.getElementById('editorScroll');
+  var gutter = document.getElementById('editorGutter');
+  var gutterInner = document.getElementById('editorGutterInner');
+
+  function autosize() {
+    input.style.height = 'auto';
+    input.style.height = input.scrollHeight + 'px';
+  }
+
+  function updateGutter() {
+    var lines = input.value.split('\n').length;
+    var s = '';
+    for (var i = 1; i <= lines; i++) s += i + (i < lines ? '\n' : '');
+    gutterInner.textContent = s;
+  }
+
+  function reflect() {
+    hlCode.innerHTML = highlight(input.value);
+    autosize();
+    updateGutter();
+  }
+
+  function insertAtCursor(text) {
+    var start = input.selectionStart, end = input.selectionEnd;
+    input.setRangeText(text, start, end, 'end');
+    reflect();
+  }
+
+  input.addEventListener('input', reflect);
+  input.addEventListener('scroll', function () {
+    gutterInner.style.transform = 'translateY(-' + input.scrollTop + 'px)';
+  });
+  scrollEl.addEventListener('scroll', function () {
+    gutterInner.style.transform = 'translateY(-' + scrollEl.scrollTop + 'px)';
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+      e.preventDefault();
+      startEngine();
+      return;
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      insertAtCursor('  ');
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      var pos = input.selectionStart;
+      var before = input.value.slice(0, pos);
+      var lineStart = before.lastIndexOf('\n') + 1;
+      var line = before.slice(lineStart);
+      var indent = (line.match(/^[ \t]*/) || [''])[0];
+      var trimmed = line.trim();
+      if (/[{(\[]$/.test(trimmed)) indent += '  ';
+      insertAtCursor('\n' + indent);
+    }
+  });
+
+  document.getElementById('btnReset').addEventListener('click', function () {
+    input.value = EXAMPLE_CODE;
+    reflect();
+    input.focus();
+  });
+
+  // ---------- tabs ----------
+  var tabBtnCode = document.getElementById('tabBtnCode');
+  var tabBtnGame = document.getElementById('tabBtnGame');
+  var viewCode = document.getElementById('viewCode');
+  var viewGame = document.getElementById('viewGame');
+
+  function setTab(name) {
+    var isCode = name === 'code';
+    viewCode.hidden = !isCode;
+    viewGame.hidden = isCode;
+    tabBtnCode.classList.toggle('active', isCode);
+    tabBtnGame.classList.toggle('active', !isCode);
+    tabBtnCode.setAttribute('aria-selected', String(isCode));
+    tabBtnGame.setAttribute('aria-selected', String(!isCode));
+  }
+  tabBtnCode.addEventListener('click', function () { setTab('code'); });
+  tabBtnGame.addEventListener('click', function () { setTab('game'); });
+
+  // ---------- engine runtime ----------
+  var STAGE_TEMPLATE = [
+    '<!doctype html><html><head><meta charset="utf-8"><style>',
+    'html,body{margin:0;height:100%;background:#0c0e14;overflow:hidden}',
+    'canvas{display:block;width:100%;height:100%}',
+    '</style></head><body><canvas id="c"></canvas><script>',
+    '(function(){',
+    '  var canvas = document.getElementById("c");',
+    '  function resize(){ canvas.width = canvas.clientWidth; canvas.height = canvas.clientHeight; }',
+    '  resize();',
+    '  window.addEventListener("resize", resize);',
+    '  var ctx = canvas.getContext("2d");',
+    '  var keys = {};',
+    '  window.addEventListener("keydown", function(e){ keys[e.key] = true; });',
+    '  window.addEventListener("keyup", function(e){ keys[e.key] = false; });',
+    '  var Engine = { canvas: canvas, ctx: ctx, keys: keys,',
+    '    get width(){ return canvas.width; }, get height(){ return canvas.height; } };',
+    '  function send(type, args){',
+    '    try {',
+    '      parent.postMessage({ __engine: true, type: type, args: Array.prototype.map.call(args, function(a){',
+    '        try { return typeof a === "object" ? JSON.stringify(a) : String(a); } catch(e){ return String(a); }',
+    '      }) }, "*");',
+    '    } catch(e){}',
+    '  }',
+    '  ["log","warn","error","info"].forEach(function(k){',
+    '    var orig = console[k];',
+    '    console[k] = function(){ send(k, arguments); orig.apply(console, arguments); };',
+    '  });',
+    '  window.onerror = function(msg, src, line){ send("error", [msg + " (line " + line + ")"]); return true; };',
+    '  var running = false, last = 0;',
+    '  window.addEventListener("message", function(ev){',
+    '    if (!ev.data || ev.data.__run !== true) return;',
+    '    var scope = {};',
+    '    try {',
+    '      var wrapped = ev.data.code +',
+    '        "\\n;scope.update = (typeof update !== \'undefined\') ? update : undefined;" +',
+    '        "\\n;scope.draw = (typeof draw !== \'undefined\') ? draw : undefined;" +',
+    '        "\\n;scope.onStart = (typeof onStart !== \'undefined\') ? onStart : undefined;";',
+    '      var runner = new Function("Engine", "scope", wrapped);',
+    '      runner(Engine, scope);',
+    '    } catch(e){ send("error", [e.message || String(e)]); return; }',
+    '    if (scope.onStart) { try { scope.onStart(); } catch(e){ send("error", [e.message || String(e)]); } }',
+    '    running = true;',
+    '    last = performance.now();',
+    '    function loop(now){',
+    '      if (!running) return;',
+    '      var dt = Math.min((now - last) / 1000, 0.1);',
+    '      last = now;',
+    '      try {',
+    '        if (scope.update) scope.update(dt);',
+    '        if (scope.draw) scope.draw(ctx);',
+    '      } catch(e){ send("error", [e.message || String(e)]); running = false; return; }',
+    '      requestAnimationFrame(loop);',
+    '    }',
+    '    send("info", ["Running."]);',
+    '    requestAnimationFrame(loop);',
+    '  });',
+    '  send("ready", []);',
+    '})();',
+    '<\/script></body></html>'
+  ].join('\n');
+
+  var stage = document.getElementById('stage');
+  var stageEmpty = document.getElementById('stageEmpty');
+  var consoleBody = document.getElementById('consoleBody');
+  var statusEl = document.getElementById('status');
+  var statusText = document.getElementById('statusText');
+  var btnStart = document.getElementById('btnStart');
+  var btnStop = document.getElementById('btnStop');
+  var currentFrame = null;
+
+  function setStatus(state, label) {
+    statusEl.className = 'status' + (state ? ' ' + state : '');
+    statusText.textContent = label;
+  }
+
+  function logRow(level, text) {
+    var row = document.createElement('div');
+    row.className = 'log-row log-' + (level === 'log' ? 'info' : level);
+    var time = document.createElement('span');
+    time.className = 'log-time';
+    var d = new Date();
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    time.textContent = pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+    var msg = document.createElement('span');
+    msg.className = 'log-msg';
+    msg.textContent = text;
+    row.appendChild(time);
+    row.appendChild(msg);
+    consoleBody.appendChild(row);
+    consoleBody.scrollTop = consoleBody.scrollHeight;
+  }
+
+  window.addEventListener('message', function (ev) {
+    if (!ev.data || ev.data.__engine !== true) return;
+    if (!currentFrame || ev.source !== currentFrame.contentWindow) return;
+    var data = ev.data;
+    if (data.type === 'ready') {
+      currentFrame.contentWindow.postMessage({ __run: true, code: input.value }, '*');
+      return;
+    }
+    if (data.type === 'error') setStatus('error', 'Error');
+    else if (data.type === 'info' && data.args[0] === 'Running.') setStatus('running', 'Running');
+    logRow(data.type, data.args.join(' '));
+  });
+
+  function startEngine() {
+    if (currentFrame) { stage.removeChild(currentFrame); currentFrame = null; }
+    consoleBody.innerHTML = '';
+    stageEmpty.hidden = true;
+    setStatus(null, 'Starting\u2026');
+    var frame = document.createElement('iframe');
+    frame.setAttribute('sandbox', 'allow-scripts');
+    frame.setAttribute('srcdoc', STAGE_TEMPLATE);
+    stage.appendChild(frame);
+    currentFrame = frame;
+    btnStop.disabled = false;
+    setTab('game');
+  }
+
+  function stopEngine() {
+    if (currentFrame) { stage.removeChild(currentFrame); currentFrame = null; }
+    stageEmpty.hidden = false;
+    setStatus(null, 'Idle');
+    btnStop.disabled = true;
+    logRow('info', 'Stopped.');
+  }
+
+  btnStart.addEventListener('click', startEngine);
+  btnStop.addEventListener('click', stopEngine);
+  document.getElementById('btnClearConsole').addEventListener('click', function () {
+    consoleBody.innerHTML = '';
+  });
+
+  // ---------- boot ----------
+  function boot(data) {
+    input.value = (data && data.code) || EXAMPLE_CODE;
+    reflect();
+    startEngine();
+  }
+
+  if (window.claude && window.claude.hot) {
+    window.claude.hot.snapshot && window.claude.hot.snapshot(function () {
+      return { code: input.value };
+    });
+    window.claude.hot.ready ? window.claude.hot.ready(boot) : boot(window.claude.hot.data);
+  } else {
+    boot();
+  }
+})();
+</script>
+
+</body></html>
